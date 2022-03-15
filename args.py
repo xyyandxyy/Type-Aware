@@ -1,5 +1,6 @@
 import argparse
 from argparse import Namespace
+# 123
 def get_args():
     parser = argparse.ArgumentParser(description='Fashion Compatibility Example')
     parser.add_argument('--batch-size', type=int, default=256, metavar='N',
