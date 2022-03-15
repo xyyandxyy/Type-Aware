@@ -54,7 +54,7 @@ class TypeSpecificNet(nn.Module):
 
         # When true we l2 normalize the output type specific embeddings
         self.l2_norm = args.l2_embed
-
+        self.resnet_linear = torch.nn.Linear(1000,256,bias=True)
         if self.fc_masks:
             # learn a fully connected layer rather than a mask to project the general embedding
             # into the type specific space
@@ -99,6 +99,7 @@ class TypeSpecificNet(nn.Module):
                when None including the general embedding concatenated onto the end
         """
         embedded_x = self.embeddingnet(x)
+        embedded_x = self.resnet_linear(embedded_x)
         # 直接调用restnet求embedding
         if c is None:
             # used during testing, wants all type specific embeddings returned for an image

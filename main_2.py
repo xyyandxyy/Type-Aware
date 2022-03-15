@@ -5,6 +5,7 @@ import numpy as np
 import os
 import sys
 import json
+import time
 import pickle
 from tqdm import tqdm
 from torch.autograd import Variable
@@ -13,6 +14,25 @@ from polyvore_outfits_2 import TripletImageLoader
 from torchvision.models import resnet18
 from tpye_specific_network_2 import TypeSpecificNet
 from tripletnet_2 import Tripletnet
+
+# # 用来将输出结果保存
+# class Logger(object):
+#     def __init__(self, filename='default.log', stream=sys.stdout):
+#         self.terminal = stream
+#         self.log = open(filename, 'w')
+#
+#     def write(self, message):
+#         self.terminal.write(message)
+#         self.log.write(message)
+#
+#     def flush(self):
+#         pass
+#
+# logger_path = "./logger"
+# current_time = time.strftime('%Y-%m-%d %H:%M:%S', time.localtime())
+# sys.stdout = Logger(logger_path + "/out_" + current_time + ".txt", sys.stdout)
+# print(123)
+
 
 args = get_args()
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
@@ -90,6 +110,7 @@ class TrainData():
         return self.images.size(0)
 
 def train(train_loader, tnet, criterion, optimizer, epoch):
+    print("epoch: ", epoch)
     losses = AverageMeter()
     accs = AverageMeter()
     emb_norms = AverageMeter()
@@ -97,12 +118,9 @@ def train(train_loader, tnet, criterion, optimizer, epoch):
 
     # switch to train mode
     tnet.train()
-    pbar = tqdm(total=len(train_loader))
+    pbar = tqdm(total=len(train_loader),ncols=150)
     for batch_idx, (img1, desc1, has_text1, img2, desc2, has_text2, img3, desc3, has_text3, condition) in enumerate(train_loader):
-        pbar.set_description(
-            "epoch {}, step {}".format(
-                epoch, batch_idx)
-        )
+
         # TrainData是一个封装类, 包括了图片,文本,类别, 可以用来抽象地表示A,P,N三个角色
         anchor = TrainData(img1, desc1, has_text1, condition)
         close = TrainData(img2, desc2, has_text2)
@@ -110,6 +128,8 @@ def train(train_loader, tnet, criterion, optimizer, epoch):
 
         # compute output
         acc, loss_triplet, loss_mask, loss_embed, loss_vse, loss_sim_t, loss_sim_i = tnet(anchor, far, close)
+
+        # print("acc:",acc," loss_triplet:",loss_triplet," loss_mask:",loss_mask, " loss_embed:", loss_embed, " loss_vse:",loss_vse, " loss_sim_t:",loss_sim_t," loss_sim_i:",loss_sim_i)
 
         # encorages similar text inputs (sim_t) and image inputs (sim_i) to
         # embed close to each other, images operate on the general embedding
@@ -140,15 +160,22 @@ def train(train_loader, tnet, criterion, optimizer, epoch):
         if loss == loss:
             loss.backward()
             optimizer.step()
-
-        if batch_idx % args.log_interval == 0:
-            print('Train Epoch: {} [{}/{}]\t'
-                  'Loss: {:.4f} ({:.4f}) \t'
-                  'Acc: {:.2f}% ({:.2f}%) \t'
-                  'Emb_Norm: {:.2f} ({:.2f})'.format(
-                epoch, batch_idx * num_items, len(train_loader.dataset),
-                losses.val, losses.avg,
-                       100. * accs.val, 100. * accs.avg, emb_norms.val, emb_norms.avg))
+        # pbar.set_description(
+        #     "epoch {}, step {}".format(
+        #         epoch, batch_idx)
+        # )
+        pbar.set_description(
+            "Epoch:{:d} Loss:{:.4f}({:.4f}) Acc:{:.2f}%({:.2f}%) Emb_Norm:{:.2f}({:.2f})".format(
+                epoch, losses.val, losses.avg, 100. * accs.val, 100. * accs.avg, emb_norms.val, emb_norms.avg)
+        )
+        # if batch_idx % args.log_interval == 0:
+        #     print('Train Epoch: {} [{}/{}]\t'
+        #           'Loss: {:.4f} ({:.4f}) \t'
+        #           'Acc: {:.2f}% ({:.2f}%) \t'
+        #           'Emb_Norm: {:.2f} ({:.2f})'.format(
+        #         epoch, batch_idx * num_items, len(train_loader.dataset),
+        #         losses.val, losses.avg,
+        #                100. * accs.val, 100. * accs.avg, emb_norms.val, emb_norms.avg))
         pbar.update(1)
 
 
@@ -182,9 +209,15 @@ def main():
     csn_model = TypeSpecificNet(model, len(test_loader.dataset.typespaces)) #之后会被传入tnet作为求图像embedding的网络
     criterion = torch.nn.MarginRankingLoss(margin=args.margin)
     tnet = Tripletnet(csn_model, text_feature_dim, criterion)
+    print("正在加载tnet")
+    tnet = torch.load('/mnt/xujunhao/xyy_type_aware/model_saved/model_2022-03-13 13_13_43.pt')
+    print("tnet加载完成")
     if args.cuda:
         tnet.cuda()
     print("ResNet18加载完成")
+
+
+
 
     print("正在配置train_loader...")
     if(os.path.exists('train_loader.bin')):
@@ -221,6 +254,9 @@ def main():
     best_acc = 0
     # cudnn.benchmark = True #xyy:这个...
     if args.test:
+        print("正在尝试直接加载模型...")
+        tnet = torch.load("./model_saved/model_2022-03-13 13:13:43.pt")
+        print("加载完成, 开始测试...")
         test_acc = test(test_loader, tnet)
         sys.exit()
     else:
@@ -242,8 +278,24 @@ def main():
             # remember best acc and save checkpoint
             is_best = acc > best_acc
             best_acc = max(acc, best_acc)
+            # 保存模型
+            torch.save(tnet,
+                       './model_saved/' + "model_" + time.strftime('%Y-%m-%d %H:%M:%S', time.localtime()) + "_epoch_{}".format(epoch)+".pt")
 
-        test_acc = test(test_loader, tnet)
+
+        # #保存模型
+        # torch.save(tnet, './model_saved/'+"model_"+time.strftime('%Y-%m-%d %H:%M:%S', time.localtime())+".pt")
+        # test_acc = test(test_loader, tnet)
+
+
+# 用来将输出结果保存
+import logging, sys, time
+current_time = time.strftime('%Y-%m-%d %H:%M:%S', time.localtime())
+logging.basicConfig(filename='./logger/Type_aware '+current_time+".txt", level=logging.DEBUG)
+logger = logging.getLogger()
+sys.stderr.write = logger.error
+sys.stdout.write = logger.info
 
 if __name__ == '__main__':
+
     main()

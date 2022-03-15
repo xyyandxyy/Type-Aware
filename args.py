@@ -1,6 +1,5 @@
 import argparse
 from argparse import Namespace
-# 12345
 def get_args():
     parser = argparse.ArgumentParser(description='Fashion Compatibility Example')
     parser.add_argument('--batch-size', type=int, default=256, metavar='N',
@@ -31,7 +30,7 @@ def get_args():
                         help='how many dimensions in embedding (default: 64)')
     parser.add_argument('--use_fc', action='store_true', default=False,
                         help='Use a fully connected layer to learn type specific embeddings.')
-    parser.add_argument('--learned', dest='learned', action='store_true', default=False,
+    parser.add_argument('--learned', dest='learned', action='store_true', default=True,
                         help='To learn masks from random initialization')
     parser.add_argument('--prein', dest='prein', action='store_true', default=False,
                         help='To initialize masks to be disjoint')

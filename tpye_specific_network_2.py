@@ -2,6 +2,7 @@ import torch
 
 import numpy as np
 from args import get_args
+from torch.autograd import Variable
 args = get_args()
 
 class TypeSpecificNet(torch.nn.Module):
@@ -72,8 +73,8 @@ class TypeSpecificNet(torch.nn.Module):
                 masked_embedding = torch.cat(masked_embedding, 1)
                 embedded_x = embedded_x.unsqueeze(1)
             else:
-
-                masks = torch.Tensor(self.masks.weight.data.cpu()) # xyy:这里原来是Variable, 不知道可不可以这样改
+                masks = Variable(self.masks.weight.data)
+                # masks = torch.Tensor(self.masks.weight.data.cpu()) # xyy:这里原来是Variable, 不知道可不可以这样改
                 print(".cpu() OK!")
                 masks = masks.unsqueeze(0).repeat(embedded_x.size(0), 1, 1)
                 embedded_x = embedded_x.unsqueeze(1)

@@ -114,7 +114,9 @@ class Tripletnet(nn.Module):
         target = Variable(target)
 
         # type specific triplet loss
+        # print("dist_a:",dist_a," dist_b:", dist_b)
         loss_triplet = self.criterion(dist_a, dist_b, target)
+
         acc = accuracy(dist_a, dist_b) # xyy: 这里可以改用skilearn的
 
         # calculate image similarity loss on the general embedding
@@ -167,9 +169,11 @@ class Tripletnet(nn.Module):
             z: Close (positive) data
         """
         acc, loss_triplet, loss_sim_i, loss_mask, loss_embed, general_x, general_y, general_z = self.image_forward(x, y, z)
-        loss_sim_t, desc_x, desc_y, desc_z = self.text_forward(x, y, z)
-        loss_vse_x = self.calc_vse_loss(desc_x, general_x, general_y, general_z, x.has_text)
-        loss_vse_y = self.calc_vse_loss(desc_y, general_y, general_x, general_z, y.has_text)
-        loss_vse_z = self.calc_vse_loss(desc_z, general_z, general_x, general_y, z.has_text)
-        loss_vse = (loss_vse_x + loss_vse_y + loss_vse_z) / 3.
+        # loss_sim_t, desc_x, desc_y, desc_z = self.text_forward(x, y, z)
+        # loss_vse_x = self.calc_vse_loss(desc_x, general_x, general_y, general_z, x.has_text)
+        # loss_vse_y = self.calc_vse_loss(desc_y, general_y, general_x, general_z, y.has_text)
+        # loss_vse_z = self.calc_vse_loss(desc_z, general_z, general_x, general_y, z.has_text)
+        # loss_vse = (loss_vse_x + loss_vse_y + loss_vse_z) / 3.
+        loss_vse = 0
+        loss_sim_t = 0
         return acc, loss_triplet, loss_mask, loss_embed, loss_vse, loss_sim_t, loss_sim_i
