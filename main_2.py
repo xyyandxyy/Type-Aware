@@ -15,24 +15,56 @@ from torchvision.models import resnet18
 from tpye_specific_network_2 import TypeSpecificNet
 from tripletnet_2 import Tripletnet
 
-# # 用来将输出结果保存
-# class Logger(object):
-#     def __init__(self, filename='default.log', stream=sys.stdout):
-#         self.terminal = stream
-#         self.log = open(filename, 'w')
+# ############################################################################
+# from pyossfs.oss_bucket_manager import OSSFileManager
+# import os
+# import tarfile
 #
-#     def write(self, message):
-#         self.terminal.write(message)
-#         self.log.write(message)
+# def untar(fname, dirs='./'):
+#     """
+#     解压tar.gz文件
+#     :param fname: 压缩文件名
+#     :param dirs: 解压后的存放路径
+#     :return: bool
+#     """
+#     try:
+#         t = tarfile.open(fname)
+#         t.extractall(path = dirs)
+#         return True
+#     except Exception as e:
+#         print(e)
+#         return False
 #
-#     def flush(self):
-#         pass
+# def get_file_name(file_dir):
+#     for root, dirs, files in os.walk(file_dir):
+#         print("-----------")
+#         print(root)   #os.walk()所在目录
+#         print(dirs)   #os.walk()所在目录的所有目录名
+#         print(files)   #os.walk()所在目录的所有非目录文件名
+#         print (" ")
 #
-# logger_path = "./logger"
-# current_time = time.strftime('%Y-%m-%d %H:%M:%S', time.localtime())
-# sys.stdout = Logger(logger_path + "/out_" + current_time + ".txt", sys.stdout)
-# print(123)
-
+# def upload_tar_gz(file_path="oss://xdp-expriment/liqiang/fashion/data/", file_name='polyvore_outfits.tar.gz'):
+#     print('Start upload data!')
+#     start = time.time()
+#     # ss = OSSFileManager.get_tempdir('oss://xdp-expriment/liqiang/data_tar/modelanddata/txtonly/').tempdir
+#     ss = OSSFileManager.get_tempdir(file_path).tempdir
+#     end = time.time()
+#     print('Finish! Time: ',str(end-start), 's.')
+#     print(ss)
+#     # file = ''
+#     # for file_name in os.listdir(ss):
+#     #     file = file_name
+#     #     print(file_name)
+#
+#     file_name = os.path.join(ss, file_name)
+#     print('unzipping!')
+#     # print('----------------------')
+#     untar(file_name, file_name[:-7])
+#     print('finish unzipping!')
+#     # get_file_name(ss)
+#     return ss
+#
+# ############################################################################
 
 args = get_args()
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
@@ -204,17 +236,30 @@ def main():
                                normalize,
                            ])),
         batch_size=args.batch_size, shuffle=False, **kwargs)
-    model = resnet18(pretrained=True)
 
-    csn_model = TypeSpecificNet(model, len(test_loader.dataset.typespaces)) #之后会被传入tnet作为求图像embedding的网络
+
+
     criterion = torch.nn.MarginRankingLoss(margin=args.margin)
-    tnet = Tripletnet(csn_model, text_feature_dim, criterion)
-    print("正在加载tnet")
-    tnet = torch.load('/mnt/xujunhao/xyy_type_aware/model_saved/model_2022-03-13 13_13_43.pt')
-    print("tnet加载完成")
+
+    if args.resume:
+        model = resnet18(pretrained=True)
+        csn_model = TypeSpecificNet(model, len(test_loader.dataset.typespaces))  # 之后会被传入tnet作为求图像embedding的网络
+
+        print("正在加载tnet")
+        print("正在从checkpoint中恢复模型, checkpoint: ", args.checkpoint_name)
+        tnet = torch.load('./model_saved/' + args.checkpoint_name)
+        print("checkpoints已加载完毕")
+    else:
+        print("不从checkpoint中恢复模型, 正在重新配置模型...")
+        model = resnet18(pretrained=True)
+        print("ResNet18加载完成")
+        csn_model = TypeSpecificNet(model, len(test_loader.dataset.typespaces))  # 之后会被传入tnet作为求图像embedding的网络
+        tnet = Tripletnet(csn_model, text_feature_dim, criterion)
+        print("模型配置完毕")
+
     if args.cuda:
         tnet.cuda()
-    print("ResNet18加载完成")
+
 
 
 
@@ -288,14 +333,16 @@ def main():
         # test_acc = test(test_loader, tnet)
 
 
-# 用来将输出结果保存
-import logging, sys, time
-current_time = time.strftime('%Y-%m-%d %H:%M:%S', time.localtime())
-logging.basicConfig(filename='./logger/Type_aware '+current_time+".txt", level=logging.DEBUG)
-logger = logging.getLogger()
-sys.stderr.write = logger.error
-sys.stdout.write = logger.info
+if args.print2file:
+    # 用来将输出结果保存
+    import logging, sys, time
+    current_time = time.strftime('%Y-%m-%d %H:%M:%S', time.localtime())
+    logging.basicConfig(filename='./logger/Type_aware '+current_time+".txt", level=logging.DEBUG)
+    logger = logging.getLogger()
+    sys.stderr.write = logger.error
+    sys.stdout.write = logger.info
 
 if __name__ == '__main__':
-
+    # args.datadir = upload_tar_gz()
+    print("args.datadir: ",args.datadir)
     main()

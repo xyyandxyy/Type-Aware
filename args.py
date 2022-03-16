@@ -16,8 +16,6 @@ def get_args():
                         help='enables CUDA training')
     parser.add_argument('--log-interval', type=int, default=250, metavar='N',
                         help='how many batches to wait before logging training status')
-    parser.add_argument('--resume', default='', type=str,
-                        help='path to latest checkpoint (default: none)')
     parser.add_argument('--name', default='Type_Specific_Fashion_Compatibility', type=str,
                         help='name of experiment')
     parser.add_argument('--polyvore_split', default='disjoint', type=str,
@@ -54,6 +52,12 @@ def get_args():
                         help='parameter for loss for text-text similarity')
     parser.add_argument('--sim_i_loss', type=float, default=5e-5, metavar='M',
                         help='parameter for loss for image-image similarity')
+    parser.add_argument('--resume', type=bool, default=False,
+                        help='resume from a checkpoint')
+    parser.add_argument('--checkpoint_name', default='model_2022-03-13 13_13_43.pt', type=str,
+                        help='filename of the checkpoint')
+    parser.add_argument('--print2file', type=bool, default=True,
+                        help='print log to file')
 
     args = parser.parse_args()
     return args
