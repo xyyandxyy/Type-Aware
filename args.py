@@ -2,7 +2,7 @@ import argparse
 from argparse import Namespace
 def get_args():
     parser = argparse.ArgumentParser(description='Fashion Compatibility Example')
-    parser.add_argument('--batch-size', type=int, default=256, metavar='N',
+    parser.add_argument('--batch-size', type=int, default=200, metavar='N',
                         help='input batch size for training (default: 256)')
     parser.add_argument('--epochs', type=int, default=10, metavar='N',
                         help='number of epochs to train (default: 10)')
@@ -20,7 +20,7 @@ def get_args():
                         help='name of experiment')
     parser.add_argument('--polyvore_split', default='disjoint', type=str,
                         help='specifies the split of the polyvore data (either disjoint or nondisjoint)')
-    parser.add_argument('--datadir', default='/mnt/xujunhao/xyy_siamese_metrix/data', type=str,
+    parser.add_argument('--datadir', default='/data/jingliqiang/xujunhao/xyy_siamese/data/', type=str,
                         help='directory of the polyvore outfits dataset (default: data)')
     parser.add_argument('--dim_embed', type=int, default=64, metavar='N',
                         help='how many dimensions in embedding (default: 64)')
@@ -54,7 +54,7 @@ def get_args():
                         help='resume from a checkpoint')
     parser.add_argument('--checkpoint_name', default='model_2022-03-13 13_13_43.pt', type=str,
                         help='filename of the checkpoint')
-    parser.add_argument('--print2file', type=bool, default=True,
+    parser.add_argument('--print2file', type=bool, default=False,
                         help='print log to file')
     parser.add_argument('--test', dest='test', action='store_true', default=True,
                         help='To only run inference on test set')

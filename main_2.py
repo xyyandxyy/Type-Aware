@@ -90,7 +90,7 @@ def test(test_loader, tnet):
             images = images.cuda()
         images = Variable(images)
         with torch.no_grad():
-            embedding = tnet.embeddingnet(images)[0]
+            embedding = tnet.embeddingnet(images).data
         embeddings.append(embedding)
         # embeddings.append(tnet.embeddingnet(images)[0].cpu())
         pbar.set_description(
@@ -239,6 +239,7 @@ def main():
     # 配置数据集加载参数
     # kwargs = {'num_workers': 8, 'pin_memory': True} if args.cuda else {}
     kwargs = {}
+
     print("正在配置test_loader...")
     test_loader = torch.utils.data.DataLoader(
         TripletImageLoader(args, 'test', meta_data,
@@ -273,23 +274,20 @@ def main():
     if args.cuda:
         tnet.cuda()
 
-
-
-
-
-    print("正在配置train_loader...")
-    train_loader = torch.utils.data.DataLoader(
-        TripletImageLoader(args, 'train', meta_data,
-                           text_dim=text_feature_dim,
-                           transform=transforms.Compose([
-                               transforms.Scale(112),
-                               transforms.CenterCrop(112),
-                               transforms.RandomHorizontalFlip(),
-                               transforms.ToTensor(),
-                               normalize,
-                           ])),
-        batch_size=args.batch_size, shuffle=True, **kwargs)
-    print('已经加载train_loader')
+    if not args.test:
+        print("正在配置train_loader...")
+        train_loader = torch.utils.data.DataLoader(
+            TripletImageLoader(args, 'train', meta_data,
+                               text_dim=text_feature_dim,
+                               transform=transforms.Compose([
+                                   transforms.Scale(112),
+                                   transforms.CenterCrop(112),
+                                   transforms.RandomHorizontalFlip(),
+                                   transforms.ToTensor(),
+                                   normalize,
+                               ])),
+            batch_size=args.batch_size, shuffle=True, **kwargs)
+        print('已经加载train_loader')
 
     print("正在配置val_loader...")
     val_loader = torch.utils.data.DataLoader(
