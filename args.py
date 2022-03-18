@@ -22,8 +22,6 @@ def get_args():
                         help='specifies the split of the polyvore data (either disjoint or nondisjoint)')
     parser.add_argument('--datadir', default='/mnt/xujunhao/xyy_siamese_metrix/data', type=str,
                         help='directory of the polyvore outfits dataset (default: data)')
-    parser.add_argument('--test', dest='test', action='store_true', default=False,
-                        help='To only run inference on test set')
     parser.add_argument('--dim_embed', type=int, default=64, metavar='N',
                         help='how many dimensions in embedding (default: 64)')
     parser.add_argument('--use_fc', action='store_true', default=False,
@@ -52,12 +50,14 @@ def get_args():
                         help='parameter for loss for text-text similarity')
     parser.add_argument('--sim_i_loss', type=float, default=5e-5, metavar='M',
                         help='parameter for loss for image-image similarity')
-    parser.add_argument('--resume', type=bool, default=False,
+    parser.add_argument('--resume', type=bool, default=True,
                         help='resume from a checkpoint')
     parser.add_argument('--checkpoint_name', default='model_2022-03-13 13_13_43.pt', type=str,
                         help='filename of the checkpoint')
     parser.add_argument('--print2file', type=bool, default=True,
                         help='print log to file')
+    parser.add_argument('--test', dest='test', action='store_true', default=True,
+                        help='To only run inference on test set')
 
     args = parser.parse_args()
     return args

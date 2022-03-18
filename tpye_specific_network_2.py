@@ -75,7 +75,7 @@ class TypeSpecificNet(torch.nn.Module):
             else:
                 masks = Variable(self.masks.weight.data)
                 # masks = torch.Tensor(self.masks.weight.data.cpu()) # xyy:这里原来是Variable, 不知道可不可以这样改
-                print(".cpu() OK!")
+                # print(".cpu() OK!")
                 masks = masks.unsqueeze(0).repeat(embedded_x.size(0), 1, 1)
                 embedded_x = embedded_x.unsqueeze(1)
                 masked_embedding = embedded_x.expand_as(masks) * masks

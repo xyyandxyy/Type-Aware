@@ -14,7 +14,7 @@ from polyvore_outfits_2 import TripletImageLoader
 from torchvision.models import resnet18
 from tpye_specific_network_2 import TypeSpecificNet
 from tripletnet_2 import Tripletnet
-
+# from pyossfs.oss_bucket_manager import OSSFileManager
 # ############################################################################
 # from pyossfs.oss_bucket_manager import OSSFileManager
 # import os
@@ -81,13 +81,26 @@ else:
 
 def test(test_loader, tnet):
     # switch to evaluation mode
+
     tnet.eval()
     embeddings = []
+    pbar = tqdm(total=len(test_loader), ncols=150)
     for batch_idx, images in enumerate(test_loader):
         if args.cuda:
             images = images.cuda()
         images = Variable(images)
-        embeddings.append(tnet.embeddingnet(images).data)
+        with torch.no_grad():
+            embedding = tnet.embeddingnet(images)[0]
+        embeddings.append(embedding)
+        # embeddings.append(tnet.embeddingnet(images)[0].cpu())
+        pbar.set_description(
+            "batch_idx:{:d}".format(
+                batch_idx)
+        )
+        if batch_idx%100==0:
+            print("batch_idx: ",batch_idx)
+        pbar.update(1)
+
 
     embeddings = torch.cat(embeddings)
     metric = tnet.metric_branch
@@ -265,25 +278,18 @@ def main():
 
 
     print("正在配置train_loader...")
-    if(os.path.exists('train_loader.bin')):
-        with open("./train_loader.bin", "rb") as f:
-            train_loader=pickle.load(f)
-        print('已从文件中读取train_loader')
-    else:
-        train_loader = torch.utils.data.DataLoader(
-            TripletImageLoader(args, 'train', meta_data,
-                               text_dim=text_feature_dim,
-                               transform=transforms.Compose([
-                                   transforms.Scale(112),
-                                   transforms.CenterCrop(112),
-                                   transforms.RandomHorizontalFlip(),
-                                   transforms.ToTensor(),
-                                   normalize,
-                               ])),
-            batch_size=args.batch_size, shuffle=True, **kwargs)
-        with open("./train_loader.bin", "wb") as f:
-            pickle.dump(train_loader,f)
-        print('已经加载train_loader')
+    train_loader = torch.utils.data.DataLoader(
+        TripletImageLoader(args, 'train', meta_data,
+                           text_dim=text_feature_dim,
+                           transform=transforms.Compose([
+                               transforms.Scale(112),
+                               transforms.CenterCrop(112),
+                               transforms.RandomHorizontalFlip(),
+                               transforms.ToTensor(),
+                               normalize,
+                           ])),
+        batch_size=args.batch_size, shuffle=True, **kwargs)
+    print('已经加载train_loader')
 
     print("正在配置val_loader...")
     val_loader = torch.utils.data.DataLoader(
@@ -299,9 +305,7 @@ def main():
     best_acc = 0
     # cudnn.benchmark = True #xyy:这个...
     if args.test:
-        print("正在尝试直接加载模型...")
-        tnet = torch.load("./model_saved/model_2022-03-13 13:13:43.pt")
-        print("加载完成, 开始测试...")
+        print("开始测试...")
         test_acc = test(test_loader, tnet)
         sys.exit()
     else:
@@ -344,5 +348,5 @@ if args.print2file:
 
 if __name__ == '__main__':
     # args.datadir = upload_tar_gz()
-    print("args.datadir: ",args.datadir)
+    # print("args.datadir: ",args.datadir)
     main()
