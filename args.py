@@ -51,13 +51,13 @@ def get_args():
     parser.add_argument('--sim_i_loss', type=float, default=5e-5, metavar='M',
                         help='parameter for loss for image-image similarity')
 
-    parser.add_argument('--resume', type=bool, default=False,
+    parser.add_argument('--resume', type=bool, default=True,
                         help='resume from a checkpoint')
-    parser.add_argument('--checkpoint_name', default='model_2022-03-13 13_13_43.pt', type=str,
+    parser.add_argument('--checkpoint_name', default='model_2022-03-20 17:37:04_epoch_10.pt', type=str,
                         help='filename of the checkpoint')
     parser.add_argument('--print2file', type=bool, default=True,
                         help='print log to file')
-    parser.add_argument('--test', dest='test', action='store_true', default=False,
+    parser.add_argument('--test', dest='test', action='store_true', default=True,
                         help='To only run inference on test set')
 
     args = parser.parse_args()

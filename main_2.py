@@ -90,19 +90,20 @@ def test(test_loader, tnet):
             images = images.cuda()
         images = Variable(images)
         with torch.no_grad():
-            embedding = tnet.embeddingnet(images).data
-        embeddings.append(embedding)
+            # temp = tnet.embeddingnet(images)
+            embeddings.append(tnet.embeddingnet(images).data.detach().cpu())
         # embeddings.append(tnet.embeddingnet(images)[0].cpu())
         pbar.set_description(
             "batch_idx:{:d}".format(
                 batch_idx)
         )
-        if batch_idx%100==0:
+        if batch_idx%101==0:
             print("batch_idx: ",batch_idx)
         pbar.update(1)
 
 
     embeddings = torch.cat(embeddings)
+    embeddings = embeddings.to(device)
     metric = tnet.metric_branch
     auc = test_loader.dataset.test_compatibility(embeddings, metric)
     acc = test_loader.dataset.test_fitb(embeddings, metric)

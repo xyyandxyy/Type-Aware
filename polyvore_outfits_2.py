@@ -271,6 +271,7 @@ class TripletImageLoader(torch.utils.data.Dataset):
                     else:
                         outfit_score += metric(Variable(embed1 * embed2)).data
 
+
                     num_comparisons += 1.
 
             outfit_score /= num_comparisons
