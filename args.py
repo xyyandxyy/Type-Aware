@@ -20,9 +20,9 @@ def get_args():
                         help='name of experiment')
     parser.add_argument('--polyvore_split', default='disjoint', type=str,
                         help='specifies the split of the polyvore data (either disjoint or nondisjoint)')
-    parser.add_argument('--datadir', default='/data/jingliqiang/xujunhao/xyy_siamese/data/', type=str,
+    parser.add_argument('--datadir', default='/home/share/xujunhao', type=str,
                         help='directory of the polyvore outfits dataset (default: data)')
-    parser.add_argument('--dim_embed', type=int, default=64, metavar='N',
+    parser.add_argument('--dim_embed', type=int, default=512, metavar='N',
                         help='how many dimensions in embedding (default: 64)')
     parser.add_argument('--use_fc', action='store_true', default=False,
                         help='Use a fully connected layer to learn type specific embeddings.')
@@ -36,7 +36,7 @@ def get_args():
                         help='number of random embeddings when rand_typespaces=True')
     parser.add_argument('--l2_embed', dest='l2_embed', action='store_true', default=False,
                         help='L2 normalize the output of the type specific embeddings')
-    parser.add_argument('--learned_metric', dest='learned_metric', action='store_true', default=False,
+    parser.add_argument('--learned_metric', dest='learned_metric', action='store_true', default=True,
                         help='Learn a distance metric rather than euclidean distance')
     parser.add_argument('--margin', type=float, default=0.3, metavar='M',
                         help='margin for triplet loss (default: 0.2)')
@@ -50,13 +50,14 @@ def get_args():
                         help='parameter for loss for text-text similarity')
     parser.add_argument('--sim_i_loss', type=float, default=5e-5, metavar='M',
                         help='parameter for loss for image-image similarity')
-    parser.add_argument('--resume', type=bool, default=True,
+
+    parser.add_argument('--resume', type=bool, default=False,
                         help='resume from a checkpoint')
     parser.add_argument('--checkpoint_name', default='model_2022-03-13 13_13_43.pt', type=str,
                         help='filename of the checkpoint')
-    parser.add_argument('--print2file', type=bool, default=False,
+    parser.add_argument('--print2file', type=bool, default=True,
                         help='print log to file')
-    parser.add_argument('--test', dest='test', action='store_true', default=True,
+    parser.add_argument('--test', dest='test', action='store_true', default=False,
                         help='To only run inference on test set')
 
     args = parser.parse_args()

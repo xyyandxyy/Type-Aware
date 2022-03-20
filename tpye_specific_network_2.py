@@ -19,7 +19,7 @@ class TypeSpecificNet(torch.nn.Module):
         # 参数是否学习
         self.learnedmask  = args.learned
         self.embeddingnet = embeddingnet
-        self.resnet_linear = torch.nn.Linear(1000,64)
+        self.resnet_linear = torch.nn.Linear(1000,args.dim_embed)
         # 确定参数的初始化方式
         prein = args.prein
 

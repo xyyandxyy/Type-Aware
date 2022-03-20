@@ -320,11 +320,12 @@ def main():
             # train for one epoch
             train(train_loader, tnet, criterion, optimizer, epoch)
             # evaluate on validation set
-            acc = test(val_loader, tnet)
+            # acc = test(val_loader, tnet)
+            # acc = test(test_loader, tnet)
 
             # remember best acc and save checkpoint
-            is_best = acc > best_acc
-            best_acc = max(acc, best_acc)
+            # is_best = acc > best_acc
+            # best_acc = max(acc, best_acc)
             # 保存模型
             torch.save(tnet,
                        './model_saved/' + "model_" + time.strftime('%Y-%m-%d %H:%M:%S', time.localtime()) + "_epoch_{}".format(epoch)+".pt")
@@ -347,4 +348,5 @@ if args.print2file:
 if __name__ == '__main__':
     # args.datadir = upload_tar_gz()
     # print("args.datadir: ",args.datadir)
+    print("备忘录: 现在弄了512Dembedding+epoch后都测试+learn_metrix")
     main()
