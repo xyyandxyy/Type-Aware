@@ -95,39 +95,19 @@ class Tripletnet(nn.Module):
         '''
         embedded_x, masknorm_norm_x, embed_norm_x, general_x = self.embeddingnet(x.images, c)
         embedded_y, masknorm_norm_y, embed_norm_y, general_y = self.embeddingnet(y.images, c)
-        embedded_z, masknorm_norm_z, embed_norm_z, general_z = self.embeddingnet(z.images, c)
-        mask_norm = (masknorm_norm_x + masknorm_norm_y + masknorm_norm_z) / 3
-        embed_norm = (embed_norm_x + embed_norm_y + embed_norm_z) / 3
-        loss_embed = embed_norm / np.sqrt(len(x))
-        loss_mask = mask_norm / len(x)
+        # embedded_z, masknorm_norm_z, embed_norm_z, general_z = self.embeddingnet(z.images, c)
+        # mask_norm = (masknorm_norm_x + masknorm_norm_y + masknorm_norm_z) / 3
+        # embed_norm = (embed_norm_x + embed_norm_y + embed_norm_z) / 3
+        # loss_embed = embed_norm / np.sqrt(len(x))
+        # loss_mask = mask_norm / len(x)
 
         if self.metric_branch is None:
             dist_a = F.pairwise_distance(embedded_x, embedded_y, 2)
-            dist_b = F.pairwise_distance(embedded_x, embedded_z, 2)
+            # dist_b = F.pairwise_distance(embedded_x, embedded_z, 2)
         else:
             dist_a = self.metric_branch(embedded_x*embedded_y)
-            dist_b = self.metric_branch(embedded_x*embedded_z)
-
-        target = torch.FloatTensor(dist_a.size()).fill_(1)  # 全填充1, 为后面方便使用损失函数
-        if dist_a.is_cuda:
-            target = target.cuda()
-        target = Variable(target)
-
-        # type specific triplet loss
-        # print("dist_a:",dist_a," dist_b:", dist_b)
-        loss_triplet = self.criterion(dist_a, dist_b, target)
-
-        acc = accuracy(dist_a, dist_b) # xyy: 这里可以改用skilearn的
-
-        # calculate image similarity loss on the general embedding
-        disti_p = F.pairwise_distance(general_y, general_z, 2)
-        disti_n1 = F.pairwise_distance(general_y, general_x, 2)
-        disti_n2 = F.pairwise_distance(general_z, general_x, 2)
-        loss_sim_i1 = self.criterion(disti_p, disti_n1, target)
-        loss_sim_i2 = self.criterion(disti_p, disti_n2, target)
-        loss_sim_i = (loss_sim_i1 + loss_sim_i2) / 2.
-
-        return acc, loss_triplet, loss_sim_i, loss_mask, loss_embed, general_x, general_y, general_z
+            # dist_b = self.metric_branch(embedded_x*embedded_z)
+        return dist_a, masknorm_norm_x, embed_norm_x, general_x, masknorm_norm_y, embed_norm_y, general_y
 
     def text_forward(self, x, y, z):
         """ x: Anchor data
@@ -168,7 +148,7 @@ class Tripletnet(nn.Module):
             y: Distant (negative) data
             z: Close (positive) data
         """
-        acc, loss_triplet, loss_sim_i, loss_mask, loss_embed, general_x, general_y, general_z = self.image_forward(x, y, z)
+        dist_a, masknorm_norm_x, embed_norm_x, general_x, masknorm_norm_y, embed_norm_y, general_y = self.image_forward(x, y, z)
         # loss_sim_t, desc_x, desc_y, desc_z = self.text_forward(x, y, z)
         # loss_vse_x = self.calc_vse_loss(desc_x, general_x, general_y, general_z, x.has_text)
         # loss_vse_y = self.calc_vse_loss(desc_y, general_y, general_x, general_z, y.has_text)
@@ -176,4 +156,4 @@ class Tripletnet(nn.Module):
         # loss_vse = (loss_vse_x + loss_vse_y + loss_vse_z) / 3.
         loss_vse = 0
         loss_sim_t = 0
-        return acc, loss_triplet, loss_mask, loss_embed, loss_vse, loss_sim_t, loss_sim_i
+        return dist_a, masknorm_norm_x, embed_norm_x, general_x, masknorm_norm_y, embed_norm_y, general_y

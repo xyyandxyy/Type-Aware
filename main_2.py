@@ -9,7 +9,7 @@ import time
 import pickle
 from tqdm import tqdm
 from torch.autograd import Variable
-
+import torch.nn.functional as F
 from polyvore_outfits_2 import TripletImageLoader
 from torchvision.models import resnet18
 from tpye_specific_network_2 import TypeSpecificNet
@@ -154,6 +154,20 @@ class TrainData():
     def __len__(self):
         return self.images.size(0)
 
+def accuracy(pos_samples, neg_samples):
+    """ pos_samples: Distance between positive pair
+        neg_samples: Distance between negative pair
+    """
+    is_cuda = pos_samples.is_cuda
+    margin = 0
+    pred = (pos_samples - neg_samples - margin).cpu().data
+    acc = (pred > 0).sum() * 1.0 / pos_samples.size()[0]
+    acc = torch.from_numpy(np.array([acc], np.float32))
+    if is_cuda:
+        acc = acc.cuda()
+
+    return Variable(acc)
+
 def train(train_loader, tnet, criterion, optimizer, epoch):
     print("epoch: ", epoch)
     losses = AverageMeter()
@@ -172,9 +186,33 @@ def train(train_loader, tnet, criterion, optimizer, epoch):
         far = TrainData(img3, desc3, has_text3)
 
         # compute output
-        acc, loss_triplet, loss_mask, loss_embed, loss_vse, loss_sim_t, loss_sim_i = tnet(anchor, far, close)
+        # acc, loss_triplet, loss_mask, loss_embed, loss_vse, loss_sim_t, loss_sim_i = tnet(anchor, far, close)
+        dist_a, masknorm_norm_x, embed_norm_x, general_x, masknorm_norm_y, embed_norm_y, general_y = tnet(anchor, far)
+        dist_b, masknorm_norm_x, embed_norm_x, general_x, masknorm_norm_z, embed_norm_z, general_z = tnet(anchor, close)
 
-        # print("acc:",acc," loss_triplet:",loss_triplet," loss_mask:",loss_mask, " loss_embed:", loss_embed, " loss_vse:",loss_vse, " loss_sim_t:",loss_sim_t," loss_sim_i:",loss_sim_i)
+        mask_norm = (masknorm_norm_x + masknorm_norm_y + masknorm_norm_z) / 3
+        embed_norm = (embed_norm_x + embed_norm_y + embed_norm_z) / 3
+        loss_embed = embed_norm / np.sqrt(len(anchor))
+        loss_mask = mask_norm / len(anchor)
+
+        target = torch.FloatTensor(dist_a.size()).fill_(1)  # 全填充1, 为后面方便使用损失函数
+        if dist_a.is_cuda:
+            target = target.cuda()
+        target = Variable(target)
+        loss_triplet = criterion(dist_a, dist_b, target)
+
+        acc = accuracy(dist_a, dist_b)
+
+        disti_p = F.pairwise_distance(general_y, general_z, 2)
+        disti_n1 = F.pairwise_distance(general_y, general_x, 2)
+        disti_n2 = F.pairwise_distance(general_z, general_x, 2)
+
+        loss_sim_i1 = criterion(disti_p, disti_n1, target)
+        loss_sim_i2 = criterion(disti_p, disti_n2, target)
+        loss_sim_i = (loss_sim_i1 + loss_sim_i2) / 2.
+
+        loss_sim_t=0
+        loss_vse=0
 
         # encorages similar text inputs (sim_t) and image inputs (sim_i) to
         # embed close to each other, images operate on the general embedding
