@@ -346,5 +346,5 @@ class TripletImageLoader(torch.utils.data.Dataset):
 
     def __len__(self):
         if self.is_train:
-            return len(self.pos_pairs)
+            return round(len(self.pos_pairs)*0.05)
         return len(self.imnames)

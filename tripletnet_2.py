@@ -83,7 +83,7 @@ class Tripletnet(nn.Module):
         self.criterion = criterion
         self.margin = args.margin
 
-    def image_forward(self, x, y, z):
+    def image_forward(self, x, y):
         """ x: Anchor data
             y: Distant (negative) data
             z: Close (positive) data
@@ -143,12 +143,12 @@ class Tripletnet(nn.Module):
         loss_vse_2 = selective_margin_loss(distd1_p, distd1_n2, self.margin, has_text)
         return (loss_vse_1 + loss_vse_2) / 2.
 
-    def forward(self, x, y, z):
+    def forward(self, x, y):
         """ x: Anchor data
             y: Distant (negative) data
             z: Close (positive) data
         """
-        dist_a, masknorm_norm_x, embed_norm_x, general_x, masknorm_norm_y, embed_norm_y, general_y = self.image_forward(x, y, z)
+        dist_a, masknorm_norm_x, embed_norm_x, general_x, masknorm_norm_y, embed_norm_y, general_y = self.image_forward(x, y)
         # loss_sim_t, desc_x, desc_y, desc_z = self.text_forward(x, y, z)
         # loss_vse_x = self.calc_vse_loss(desc_x, general_x, general_y, general_z, x.has_text)
         # loss_vse_y = self.calc_vse_loss(desc_y, general_y, general_x, general_z, y.has_text)

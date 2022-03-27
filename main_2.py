@@ -276,8 +276,8 @@ def main():
     # 指定文本嵌入维度
     text_feature_dim = 6000 # xyy: 可以加到arg里去, 不要写在这
     # 配置数据集加载参数
-    # kwargs = {'num_workers': 8, 'pin_memory': True} if args.cuda else {}
-    kwargs = {}
+    kwargs = {'num_workers': 8, 'pin_memory': True} if args.cuda else {}
+    # kwargs = {}
 
     print("正在配置test_loader...")
     test_loader = torch.utils.data.DataLoader(
