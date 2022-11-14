@@ -1,127 +1,115 @@
-from PIL import Image
-import os
-import os.path
-import torch.utils.data
-import torchvision.transforms as transforms
-import numpy as np
-import json
+from args import get_args
 import torch
+import numpy as np
+import os
+import json
 import pickle
-from sklearn.metrics import roc_auc_score
+from PIL import Image
 from torch.autograd import Variable
+from sklearn.metrics import roc_auc_score
 
-def default_image_loader(path):
-    return Image.open(path).convert('RGB')
+args = get_args()
 
-def parse_iminfo(question, im2index, id2im, gt = None):
-    """ Maps the questions from the FITB and compatibility tasks back to
-        their index in the precomputed matrix of features
-
-        question: List of images to measure compatibility between
-        im2index: Dictionary mapping an image name to its location in a
-                  precomputed matrix of features
-        gt: optional, the ground truth outfit set this item belongs to
-    """
-    questions = []
-    is_correct = np.zeros(len(question), np.bool)
-    for index, im_id in enumerate(question):
-        set_id = im_id.split('_')[0]
-        if gt is None:
-            gt = set_id
-
-        im = id2im[im_id]
-        questions.append((im2index[im], im))
-        is_correct[index] = set_id == gt
-
-    return questions, is_correct, gt
 
 def load_typespaces(rootdir, rand_typespaces, num_rand_embed):
-    """ loads a mapping of pairs of types to the embedding used to
-        compare them
-
-        rand_typespaces: Boolean indicator of randomly assigning type
-                         specific spaces to their embedding
-        num_rand_embed: number of embeddings to use when
-                        rand_typespaces is true
-    """
+    '''
+        生成类别对, 对每个类别-类别的pair进行从0开始的编号
+    '''
+    # 'data/polyvore_outfits/disjoint/typespaces.p'
     typespace_fn = os.path.join(rootdir, 'typespaces.p')
-    typespaces = pickle.load(open(typespace_fn,'rb'))
-    if not rand_typespaces:
-        ts = {}
-        for index, t in enumerate(typespaces):
-            ts[t] = index
 
-        typespaces = ts
-        return typespaces
+    # 读取"类别对类别"的pair的list
+    typespaces = pickle.load(open(typespace_fn, 'rb'))
 
-    # load a previously created random typespace or create one
-    # if none exist
-    width = 0
-    fn = os.path.join(rootdir, 'typespaces_rand_%i.p') % num_rand_embed
-    if os.path.isfile(fn):
-        typespaces = pickle.load(open(fn, 'rb'))
-    else:
-        spaces = np.random.permutation(len(typespaces))
-        width = np.ceil(len(spaces) / float(num_rand_embed))
-        ts = {}
-        for index, t in enumerate(spaces):
-            ts[typespaces[t]] = int(np.floor(index / width))
+    ts = {}
+    for index, t in enumerate(typespaces):
+        ts[t] = index # 从0开始给类别对编个号
 
-        typespaces = ts
-        pickle.dump(typespaces, open(fn, 'wb'))
-
+    typespaces = ts
     return typespaces
 
-
 def load_compatibility_questions(fn, im2index, id2im):
-    """ Returns the list of compatibility questions for the
-        split """
+    """
+        返回一个list, 包含了一大堆分数预测问题, 以编号形式表达
+    """
     with open(fn, 'r') as f:
         lines = f.readlines()
 
     compatibility_questions = []
     for line in lines:
         data = line.strip().split()
-        compat_question, _, _ = parse_iminfo(data[1:], im2index, id2im)
+        # 搭配分数预测任务:222049137_1 222049137_2 222049137_3 222049137_4 222049137_5 222049137_6
+        compat_question = []
+        for index, im_id in enumerate(data[1:]): #从第一个之后开始读, 第一个是0/1, 即分数
+            im = id2im[im_id]
+            compat_question.append((im2index[im], im))
         compatibility_questions.append((compat_question, int(data[0])))
 
     return compatibility_questions
 
 def load_fitb_questions(fn, im2index, id2im):
-    """ Returns the list of fill in the blank questions for the
-        split """
+    """
+        返回一个list, 包含了一大堆填空题问题, 以编号形式表达
+    """
     data = json.load(open(fn, 'r'))
     questions = []
     for item in data:
-        question = item['question']
-        q_index, _, gt = parse_iminfo(question, im2index, id2im)
-        answer = item['answers']
-        a_index, is_correct, _ = parse_iminfo(answer, im2index, id2im, gt)
-        questions.append((q_index, a_index, is_correct))
+        # FITB任务: "question": ["222049137_1", "222049137_2", "222049137_3", "222049137_4", "222049137_5"]
+        question = item['question'] # 加载每个问题
+        question_idx = []
+        ground_truth = None # 记录真实outfit_id
+        for index, im_id in enumerate(question):
+            ground_truth = im_id.split('_')[0]
+            im = id2im[im_id]
+            question_idx.append((im2index[im], im)) # 问题原文的items
+
+        answer = item['answers'] # 加载问题的选项
+        answers_idx = []
+        is_correct = np.zeros(len(answer), np.bool)
+        for index, im_id in enumerate(answer):
+            set_id = im_id.split('_')[0] # 获取选项的outfit
+            im = id2im[im_id]
+            answers_idx.append((im2index[im], im)) # 选项的items
+            is_correct[index] = set_id == ground_truth # 设置每个选项的正确性
+        questions.append((question_idx, answers_idx, is_correct))
 
     return questions
 
+def default_image_loader(path):
+    return Image.open(path).convert('RGB')
+
 class TripletImageLoader(torch.utils.data.Dataset):
-    def __init__(self, args, split, meta_data, text_dim = None, transform=None, loader=default_image_loader):
+    def __init__(self, args, split, meta_data, text_dim=None, transform=None, loader=default_image_loader):
+        '''
+            split: 选择是用哪一个数据的子集, 即训练集还是测试机
+            meta_data: 读取"polyvore_item_metadata.json"内的数据, 元数据里有item的描述, 类别
+            text_dim: 文本embedding维度, 6000
+            transform: 用来给图片做变化
+            loader: # 读取图片的模组
+        '''
+        # 拼接数据路径
         rootdir = os.path.join(args.datadir, 'polyvore_outfits', args.polyvore_split)
+        # 设置图片路径
         self.impath = os.path.join(args.datadir, 'polyvore_outfits', 'images')
+        # 判断是否在训练
         self.is_train = split == 'train'
+        # 读取对应split的数据, 如test.json
         data_json = os.path.join(rootdir, '%s.json' % split)
-        outfit_data = json.load(open(data_json, 'r'))
-        # new_lenth = round(1/100*len(outfit_data))
-        # outfit_data = outfit_data[:new_lenth]
+        outfit_data = json.load(open(data_json, 'r')) # outfit数据, <outfit_id, [item_ids]>
 
         # get list of images and make a mapping used to quickly organize the data
-        im2type = {}
-        category2ims = {}
-        imnames = set()
-        id2im = {}
+        # 读取图片列表, 并且重新映射
+        im2type = {} # 由item名字查询其类别的字典
+        category2ims = {} # 由类别查询其下所有item的字典, 二维, <类别, outfit名>
+        imnames = set() # 记录所有item名字的集合
+        id2im = {} # 由outfit名和底下item的次序来查询item名字的字典
         for outfit in outfit_data:
+            # 获取outfit名字
             outfit_id = outfit['set_id']
             for item in outfit['items']:
-                im = item['item_id']
-                category = meta_data[im]['semantic_category']
-                im2type[im] = category
+                im = item['item_id'] # 获取item的名字
+                category = meta_data[im]['semantic_category'] # 查询语义层面的类别, 如top
+                im2type[im] = category # 记录这个item的类别, 保存为字典
 
                 if category not in category2ims:
                     category2ims[category] = {}
@@ -129,47 +117,51 @@ class TripletImageLoader(torch.utils.data.Dataset):
                 if outfit_id not in category2ims[category]:
                     category2ims[category][outfit_id] = []
 
-                category2ims[category][outfit_id].append(im)
-                id2im['%s_%i' % (outfit_id, item['index'])] = im
-                imnames.add(im)
+                category2ims[category][outfit_id].append(im) # 把item归到<类别, outfit名>字典底下
+                id2im['%s_%i' % (outfit_id, item['index'])] = im # 由outfit名和底下item的次序来记录item名字
+                imnames.add(im) # 记录所有item名字的集合
 
         imnames = list(imnames)
-        im2index = {}
+        im2index = {} # 将item从0开始编号, 可以由item编号查询item的名字
         for index, im in enumerate(imnames):
-            im2index[im] = index
+            im2index[im] = index # 更新编号
 
-        self.data = outfit_data
-        self.imnames = imnames
-        self.im2type = im2type
+        self.data = outfit_data # outfit数据, <outfit_id, [item_ids]>
+        self.imnames = imnames # 记录所有item名字的集合
+        self.im2type = im2type # 由item名字查询其类别的字典
         self.typespaces = load_typespaces(rootdir, args.rand_typespaces, args.num_rand_embed)
-        self.transform = transform
-        self.loader = loader
-        self.split = split
+        self.transform = transform # 用来给图片做变化
+        self.loader = loader # 读取图片的模组
+        self.split = split # 选择是用哪一个数据的子集, 即训练集还是测试集
+        self.category2ims = category2ims
 
         if self.is_train:
-            self.text_feat_dim = text_dim
-            self.desc2vecs = {}
+            self.text_feat_dim = text_dim # 文本嵌入维度, 6000
+            self.desc2vecs = {}  # 文本转向量字典
+            # 读取文本描述的embedding,6000dim
             featfile = os.path.join(rootdir, 'train_hglmm_pca6000.txt')
+
             with open(featfile, 'r') as f:
                 for line in f:
                     line = line.strip()
                     if not line:
                         continue
-                    
+
                     vec = line.split(',')
-                    label = ','.join(vec[:-self.text_feat_dim])
+                    label = ','.join(vec[:-self.text_feat_dim]) # 提取纯文本信息
+                    # vec: (6000,)
                     vec = np.array([float(x) for x in vec[-self.text_feat_dim:]], np.float32)
                     assert(len(vec) == text_dim)
-                    self.desc2vecs[label] = vec
-                    
-            self.im2desc = {}
+                    self.desc2vecs[label] = vec # 文本转向量字典
+
+            self.im2desc = {} # 用图片的名字查找文本向量, 注意是向量
             for im in imnames:
                 desc = meta_data[im]['title']
                 if not desc:
                     desc = meta_data[im]['url_name']
-                    
-                desc = desc.replace('\n','').encode('ascii', 'ignore').strip().lower()
-                
+
+                desc = desc.replace('\n', '').encode('ascii', 'ignore').strip().lower()
+
                 # sometimes descriptions didn't map to any known words so they were
                 # removed, so only add those which have a valid feature representation
                 if desc and desc in self.desc2vecs:
@@ -177,75 +169,71 @@ class TripletImageLoader(torch.utils.data.Dataset):
 
             # At train time we pull the list of outfits and enumerate the pairwise
             # comparisons between them to train with.  Negatives are pulled by the
-            # __get_item__ function
+            # __get_item__ functi47on
             pos_pairs = []
             max_items = 0
             for outfit in outfit_data:
                 items = outfit['items']
+                item_id=[]
+                for item in items:
+                    item_id.append(item['item_id'])
                 cnt = len(items)
                 max_items = max(cnt, max_items)
                 outfit_id = outfit['set_id']
                 for j in range(cnt-1):
                     for k in range(j+1, cnt):
-                        temp = [outfit_id, items[j]['item_id'], items[k]['item_id']]
-                        pos_pairs.append([outfit_id, items[j]['item_id'], items[k]['item_id']])
+                        # 记录组合三元组 <outfit_id, item的名字, 另一个item的名字>
+                        pos_pairs.append((outfit_id, item_id[j], item_id[k]))
 
             self.pos_pairs = pos_pairs
-            self.category2ims = category2ims
-            self.max_items = max_items
-        else:
+            self.max_items = max_items # 记录单outfit的最大item数目
+        else: # 如果不在训练状态
             # pull the two task's questions for test and val splits
             fn = os.path.join(rootdir, 'fill_in_blank_%s.json' % split)
+            # 加载填空问题
             self.fitb_questions = load_fitb_questions(fn, im2index, id2im)
             fn = os.path.join(rootdir, 'compatibility_%s.txt' % split)
+            # 加载分数预测问题
             self.compatibility_questions = load_compatibility_questions(fn, im2index, id2im)
 
     def load_train_item(self, image_id):
-        """ Returns a single item in the triplet and its data
-        """
+        '''
+        传入图片的名字, 返回图片和文本
+        '''
         imfn = os.path.join(self.impath, '%s.jpg' % image_id)
         img = self.loader(imfn)
         if self.transform is not None:
             img = self.transform(img)
-
         if image_id in self.im2desc:
             text = self.im2desc[image_id]
-            text_features = self.desc2vecs[text]
+            text_features = self.desc2vecs[text] # 获取文本embedding
             has_text = 1
         else:
             text_features = np.zeros(self.text_feat_dim, np.float32)
             has_text = 0.
-
-        has_text = np.float32(has_text)
-        item_type = self.im2type[image_id]
+        has_text = np.float32(has_text) # 0/1是否有文本
+        item_type = self.im2type[image_id] # 获取item的类型
         return img, text_features, has_text, item_type
 
-    def sample_negative(self, outfit_id, item_id, item_type):
-        """ Returns a randomly sampled item from a different set
-            than the outfit at data_index, but of the same type as
-            item_type
-        
-            data_index: index in self.data where the positive pair
-                        of items was pulled from
-            item_type: the coarse type of the item that the item
-                       that was paired with the anchor
-        """
+    def sample_negative(self, item_id, item_type):
+        '''
+            给定item名字和item的类型, 去找同类, 但又不能是自己
+        '''
         item_out = item_id
         candidate_sets = self.category2ims[item_type].keys()
         attempts = 0
         while item_out == item_id and attempts < 100:
-            choice = np.random.choice(candidate_sets)
+            choice = np.random.choice(list(candidate_sets))
             items = self.category2ims[item_type][choice]
             item_index = np.random.choice(range(len(items)))
             item_out = items[item_index]
             attempts += 1
-                
         return item_out
 
     def get_typespace(self, anchor, pair):
-        """ Returns the index of the type specific embedding
-            for the pair of item types provided as input
-        """
+        '''
+         给定两个item类型, 找到他们两个类型对的编号
+        '''
         query = (anchor, pair)
         if query not in self.typespaces:
             query = (pair, anchor)
@@ -269,10 +257,10 @@ class TripletImageLoader(torch.utils.data.Dataset):
             n_items = len(outfit)
             outfit_score = 0.0
             num_comparisons = 0.0
-            for i in range(n_items-1):
+            for i in range(n_items - 1):
                 item1, img1 = outfit[i]
                 type1 = self.im2type[img1]
-                for j in range(i+1, n_items):
+                for j in range(i + 1, n_items):
                     item2, img2 = outfit[j]
                     type2 = self.im2type[img2]
                     condition = self.get_typespace(type1, type2)
@@ -284,15 +272,15 @@ class TripletImageLoader(torch.utils.data.Dataset):
                         outfit_score += metric(Variable(embed1 * embed2)).data
 
                     num_comparisons += 1.
-                
+
             outfit_score /= num_comparisons
             scores.append(outfit_score)
-            
+
         scores = torch.cat(scores).squeeze().cpu().numpy()
-        #scores = np.load('feats.npy')
-        #print(scores)
-        #assert(False)
-        #np.save('feats.npy', scores)
+        # scores = np.load('feats.npy')
+        # print(scores)
+        # assert(False)
+        # np.save('feats.npy', scores)
         auc = roc_auc_score(labels, 1 - scores)
         return auc
 
@@ -323,10 +311,10 @@ class TripletImageLoader(torch.utils.data.Dataset):
                         score += metric(Variable(embed1 * embed2)).data
 
                 answer_score[index] = score.squeeze().cpu().numpy()
-                            
+
             correct += is_correct[np.argmin(answer_score)]
             n_questions += 1
-                        
+
         # scores are based on distances so need to convert them so higher is better
         acc = correct / n_questions
         return acc
@@ -334,27 +322,28 @@ class TripletImageLoader(torch.utils.data.Dataset):
     def __getitem__(self, index):
         if self.is_train:
             outfit_id, anchor_im, pos_im = self.pos_pairs[index]
+            # 获取anchor
             img1, desc1, has_text1, anchor_type = self.load_train_item(anchor_im)
+            # 获取positive
             img2, desc2, has_text2, item_type = self.load_train_item(pos_im)
-            
-            neg_im = self.sample_negative(outfit_id, pos_im, item_type)
+            # 获取negative, 先采样获得负例item的名字, 再获取它的数据
+            neg_im = self.sample_negative(pos_im, item_type)
+            if neg_im is None:
+                print(123)
             img3, desc3, has_text3, _ = self.load_train_item(neg_im)
+            # 获得类型对编号
             condition = self.get_typespace(anchor_type, item_type)
             return img1, desc1, has_text1, img2, desc2, has_text2, img3, desc3, has_text3, condition
+        else:
+            # 如果不是读训练集, 而是读测试集
+            anchor = self.imnames[index]
+            img1 = self.loader(os.path.join(self.impath, '%s.jpg' % anchor))
+            if self.transform is not None:
+                img1 = self.transform(img1)
 
-        anchor = self.imnames[index]
-        img1 = self.loader(os.path.join(self.impath, '%s.jpg' % anchor))
-        if self.transform is not None:
-            img1 = self.transform(img1)
-            
-        return img1
+            return img1
 
-
-    def shuffle(self):
-        np.random.shuffle(self.pos_pairs)
-        
     def __len__(self):
         if self.is_train:
             return len(self.pos_pairs)
-
         return len(self.imnames)
