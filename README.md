@@ -19,8 +19,8 @@ If you want to learn the details of Type-Aware or train it from scratch by yours
 # Dependencies
 
 * `python3.6+`
-* `torch==1.7.0`+
-* `torchvision==0.8.0`+
+* `torch==1.7.0+`
+* `torchvision==0.8.0+`
 * `tqdm`
 
 # Usage
