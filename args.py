@@ -55,7 +55,7 @@ def get_args():
                         help='resume from a checkpoint')
     parser.add_argument('--checkpoint_name', default='model_2022-03-13 13_13_43.pt', type=str,
                         help='filename of the checkpoint')
-    parser.add_argument('--print2file', type=bool, default=True,
+    parser.add_argument('--print2file', type=bool, default=False,
                         help='print log to file')
     parser.add_argument('--test', dest='test', action='store_true', default=False,
                         help='To only run inference on test set')
